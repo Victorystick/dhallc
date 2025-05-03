@@ -5,11 +5,12 @@ import "testing"
 //go:generate go run ../../cmd/dhallc.go --out ./list.go ./list.dhall
 
 func TestNats(t *testing.T) {
-	if len(Nats) != 4 {
-		t.Errorf("Expected 4 elements got, got %v\n", Nats)
+	expected := []uint{1, 2, 3, 4, 3, 0}
+
+	if len(Nats) != len(expected) {
+		t.Errorf("Expected %d elements got, got %v\n", len(expected), Nats)
 	}
 
-	expected := []uint{1, 2, 3, 4}
 	for i, v := range expected {
 		if Nats[i] != v {
 			t.Errorf("Item at index %d didn't match %v != %v\n", i, Nats[i], v)

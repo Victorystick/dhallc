@@ -200,9 +200,6 @@ func generate(b *builder, val term.Term) error {
 	case term.False:
 		_, err := b.WriteString("false")
 		return err
-	case term.ListLength:
-		b.Lib("ListLength")
-		return nil
 	case term.Natural:
 		b.WriteString("uint")
 		return nil
@@ -213,6 +210,13 @@ func generate(b *builder, val term.Term) error {
 
 	// Types
 	switch val := val.(type) {
+	case term.Builtin:
+		// This is a hack to serialize build-in functions.
+		// But I'll try it.
+		parts := strings.SplitN(string(val), "/", 2)
+		b.Lib(parts[0] + strings.Title(parts[1]))
+		return nil
+
 	case term.NaturalLit:
 		b.WriteString(strconv.FormatUint(uint64(val), 10))
 		return nil
@@ -293,6 +297,9 @@ func generate(b *builder, val term.Term) error {
 			return err
 		}
 		return writeRecordLit(b, val, typ)
+
+	case term.EmptyList:
+		return writeListLit(b, nil, val.Type)
 
 	case term.NonEmptyList:
 		// This should be done another way. :/
@@ -461,6 +468,13 @@ func writeOp(b *builder, op term.Op) error {
 		return writeInfixOp(b, " + ", op)
 	case term.TimesOp:
 		return writeInfixOp(b, " * ", op)
+	case term.TextAppendOp:
+		err := generate(b, op.L)
+		if err != nil {
+			return err
+		}
+		b.WriteString(" + ")
+		return generate(b, op.R)
 	case term.ListAppendOp:
 		b.Lib("ListConcat(")
 		err := generate(b, op.L)
@@ -566,6 +580,15 @@ func writeType(b *builder, t term.Term) error {
 		b.WriteByte(']')
 		return nil
 
+	case term.Op:
+		switch t.OpCode {
+		case term.PlusOp:
+			return writeType(b, term.Natural)
+		case term.TimesOp:
+			return writeType(b, term.Natural)
+		case term.TextAppendOp:
+			return writeType(b, term.Text)
+		}
 	}
 
 	return fmt.Errorf("unhandled type %v: %T", t, t)
@@ -593,7 +616,19 @@ func isType(t term.Term) bool {
 	return false
 }
 
+var (
+	ListLength      = term.NewAnonPi(term.Type, term.NewAnonPi(term.List, term.Natural))
+	NaturalSubtract = term.NewAnonPi(term.Natural, term.NewAnonPi(term.Natural, term.Natural))
+)
+
 func InferType(scope Scope, t term.Term) (term.Term, error) {
+	switch t {
+	case term.ListLength:
+		return ListLength, nil
+	case term.NaturalSubtract:
+		return NaturalSubtract, nil
+	}
+
 	switch t := t.(type) {
 	// We shouldn't return self. :/
 	case term.Builtin:
@@ -601,9 +636,10 @@ func InferType(scope Scope, t term.Term) (term.Term, error) {
 	case term.RecordType:
 		return t, nil
 
-		// This is possibly correct.
+	case term.EmptyList:
+		return t.Type, nil
 	case term.NonEmptyList:
-		return t, nil
+		return InferType(scope, t[0])
 
 	case term.Let:
 		child := ChildScope(&scope)
@@ -638,6 +674,8 @@ func InferType(scope Scope, t term.Term) (term.Term, error) {
 			return term.Natural, nil
 		case term.TimesOp:
 			return term.Natural, nil
+		case term.TextAppendOp:
+			return term.Text, nil
 		case term.ListAppendOp:
 			return InferType(scope, t.L)
 		}

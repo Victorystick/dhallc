@@ -10,6 +10,6 @@ func ListConcat[T any](a, b []T) []T {
 	return res
 }
 
-func ListLength[T any](a []T) int {
-	return len(a)
+func ListLength[T any](a []T) uint {
+	return uint(len(a))
 }
