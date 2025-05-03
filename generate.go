@@ -15,8 +15,10 @@ import (
 // TODO: Use go/printer instead?
 type builder struct {
 	strings.Builder
-	indent string
-	types  Scope
+	// Path to name.
+	imports map[string]string
+	indent  string
+	types   Scope
 	// The current type?
 	current string
 }
@@ -61,7 +63,8 @@ func (s *Scope) Pop() {
 
 func MakeBuilder() builder {
 	return builder{
-		types: Scope{terms: make(map[string]term.Term)},
+		imports: make(map[string]string),
+		types:   Scope{terms: make(map[string]term.Term)},
 	}
 }
 
@@ -84,11 +87,12 @@ func (b *builder) Dedent() {
 }
 
 func GeneratePackage(filename string, t term.Term) (string, error) {
-	b := MakeBuilder()
-	b.WriteString("package ")
-	b.WriteString(filename)
-	b.WriteByte('\n')
+	p := MakeBuilder()
+	p.WriteString("package ")
+	p.WriteString(filename)
+	p.WriteByte('\n')
 
+	b := MakeBuilder()
 	err := generatePackage(&b, t)
 	if err != nil {
 		fmt.Println(b.String())
@@ -96,7 +100,26 @@ func GeneratePackage(filename string, t term.Term) (string, error) {
 	}
 
 	b.WriteByte('\n')
-	return b.String(), nil
+
+	if len(b.imports) > 0 {
+		p.NewLine()
+		p.WriteString("import (")
+		p.indent = "\t"
+		for k := range b.imports {
+			p.NewLine()
+			p.WriteByte('"')
+			p.WriteString(k)
+			p.WriteByte('"')
+		}
+		p.indent = ""
+		p.NewLine()
+		p.WriteByte(')')
+		p.NewLine()
+	}
+
+	p.WriteString(b.String())
+
+	return p.String(), nil
 }
 
 func generatePackage(b *builder, t term.Term) error {
@@ -408,6 +431,20 @@ func writeOp(b *builder, op term.Op) error {
 		return writeInfixOp(b, " + ", op)
 	case term.TimesOp:
 		return writeInfixOp(b, " * ", op)
+	case term.ListAppendOp:
+		b.imports["github.com/Victorystick/dhallc/lib"] = ""
+		b.WriteString("lib.ListConcat(")
+		err := generate(b, op.L)
+		if err != nil {
+			return err
+		}
+		b.WriteString(", ")
+		err = generate(b, op.L)
+		if err != nil {
+			return err
+		}
+		b.WriteByte(')')
+		return nil
 	}
 
 	return fmt.Errorf("unhandled operation %v", op.OpCode)
