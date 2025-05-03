@@ -1,0 +1,3 @@
+# Ignore generated files in examples, but not tests.
+examples/**/*.go
+!examples/**/*_test.go
