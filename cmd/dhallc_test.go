@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/andreyvit/diff"
 )
 
 func TestGoldens(t *testing.T) {
@@ -47,7 +49,7 @@ func TestGoldens(t *testing.T) {
 
 		expected := string(contents)
 		if expected != out {
-			t.Errorf("Failed %s - expected:\n\n'%s'\ngot:\n\n'%s'", test.Name(), expected, out)
+			t.Errorf("Failed %s:\n%v", test.Name(), diff.LineDiff(expected, out))
 		}
 	}
 }

@@ -15,7 +15,8 @@ import (
 // TODO: Use go/printer instead?
 type builder struct {
 	strings.Builder
-	types Scope
+	indent string
+	types  Scope
 	// The current type?
 	current string
 }
@@ -62,6 +63,24 @@ func MakeBuilder() builder {
 	return builder{
 		types: Scope{terms: make(map[string]term.Term)},
 	}
+}
+
+// Indent increases the indentation.
+func (b *builder) Indent() {
+	b.indent = "  " + b.indent
+	b.WriteString("{")
+}
+
+func (b *builder) NewLine() {
+	b.WriteByte('\n')
+	b.WriteString(b.indent)
+}
+
+func (b *builder) Dedent() {
+	// Will panic ?
+	b.indent = b.indent[2:]
+	b.NewLine()
+	b.WriteString("}")
 }
 
 func GeneratePackage(filename string, t term.Term) (string, error) {
@@ -192,7 +211,7 @@ func generate(b *builder, val term.Term) error {
 			if err != nil {
 				return err
 			}
-			b.WriteByte('\n')
+			b.NewLine()
 		}
 		return generate(b, val.Body)
 
@@ -242,19 +261,19 @@ func writeRecordLit(b *builder, val term.RecordLit, typ term.Term) error {
 	}
 
 	// For stable outputs.
-	b.WriteString("{\n")
+	b.Indent()
 	for _, key := range slices.Sorted(maps.Keys(val)) {
 		val := val[key]
-		b.WriteString("  ")
+		b.NewLine()
 		b.WriteString(key)
 		b.WriteString(": ")
 		err := generate(b, val)
 		if err != nil {
 			return err
 		}
-		b.WriteString(",\n")
+		b.WriteByte(',')
 	}
-	b.WriteRune('}')
+	b.Dedent()
 	return nil
 }
 
@@ -264,16 +283,16 @@ func writeListLit(b *builder, val []term.Term, typ term.Term) error {
 	if err != nil {
 		return err
 	}
-	b.WriteString("{\n")
+	b.Indent()
 	for _, val := range val {
-		b.WriteString("  ")
+		b.NewLine()
 		err := generate(b, val)
 		if err != nil {
 			return err
 		}
-		b.WriteString(",\n")
+		b.WriteByte(',')
 	}
-	b.WriteRune('}')
+	b.Dedent()
 	return nil
 }
 
@@ -291,7 +310,7 @@ func writeLet(b *builder, bd term.Binding) (err error) {
 
 	// If type, not value.
 	if bd.Annotation == term.Type {
-		b.WriteByte('\n')
+		b.NewLine()
 		b.WriteString("type ")
 		b.WriteString(bd.Variable)
 		b.WriteByte(' ')
@@ -300,7 +319,8 @@ func writeLet(b *builder, bd term.Binding) (err error) {
 
 	if fn, ok := val.(term.Lambda); ok {
 		if pi, ok := typ.(term.Pi); ok {
-			b.WriteString("\nfunc ")
+			b.NewLine()
+			b.WriteString("func ")
 			b.WriteString(bd.Variable)
 			return writeFn(b, fn, pi.Body)
 		} else {
@@ -308,7 +328,8 @@ func writeLet(b *builder, bd term.Binding) (err error) {
 		}
 	}
 
-	b.WriteString("\nvar ")
+	b.NewLine()
+	b.WriteString("var ")
 	b.WriteString(bd.Variable)
 	b.WriteString(" = ")
 	return writeTyped(b, val, typ)
@@ -340,29 +361,34 @@ func writeFn(b *builder, l term.Lambda, ret term.Term) (err error) {
 	if err != nil {
 		return err
 	}
-	b.WriteString(" {\n")
+
+	b.WriteByte(' ')
+	b.Indent()
 	err = writeFnBody(b, l.Body, ret)
 	if err != nil {
 		return err
 	}
-	b.WriteString("\n}")
+	b.Dedent()
 	return nil
 }
 
 func writeFnBody(b *builder, t term.Term, ret term.Term) error {
 	if let, ok := t.(term.Let); ok {
 		for _, binding := range let.Bindings {
+			b.NewLine()
 			err := writeLet(b, binding)
 			if err != nil {
 				return err
 			}
-			b.WriteByte('\n')
 		}
-		b.WriteString("  return ")
+
+		b.NewLine()
+		b.WriteString("return ")
 		return writeTyped(b, let.Body, ret)
 	}
 
-	b.WriteString("  return ")
+	b.NewLine()
+	b.WriteString("return ")
 	return writeTyped(b, t, ret)
 }
 
@@ -435,20 +461,20 @@ func writeType(b *builder, t term.Term) error {
 		return writeType(b, t.Body)
 
 	case term.RecordType:
-		b.WriteString("struct {\n")
+		b.WriteString("struct ")
+		b.Indent()
 		// For stable outputs.
 		for _, key := range slices.Sorted(maps.Keys(t)) {
 			val := t[key]
-			b.WriteString("  ")
+			b.NewLine()
 			b.WriteString(key)
 			b.WriteByte(' ')
 			err := writeType(b, val)
 			if err != nil {
 				return err
 			}
-			b.WriteString("\n")
 		}
-		b.WriteByte('}')
+		b.Dedent()
 
 		return nil
 

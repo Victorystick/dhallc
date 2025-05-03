@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/andreyvit/diff"
 	"github.com/philandstuff/dhall-golang/v6/parser"
 )
 
@@ -19,7 +20,7 @@ func expect(t *testing.T, dhall string, expected string) {
 		return
 	}
 	if result != expected {
-		t.Errorf("'%s' != '%s'", result, expected)
+		t.Errorf("%v", diff.LineDiff(expected, result))
 	}
 }
 
@@ -54,8 +55,8 @@ func incr(x uint) uint {
 	expect(t, `let add = \(x : Natural) -> \(y : Natural) -> x + y in add`, `
 func add(x uint) func(uint) uint {
   return func(y uint) uint {
-  return x + y
-}
+    return x + y
+  }
 }
 add`)
 }
@@ -79,7 +80,7 @@ func expectPackage(t *testing.T, dhall string, expected string) {
 	}
 	result = result[len(preamble):]
 	if result != expected {
-		t.Errorf("'%s' != '%s'", result, expected)
+		t.Errorf("%v", diff.LineDiff(expected, result))
 	}
 }
 
