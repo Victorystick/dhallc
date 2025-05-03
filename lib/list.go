@@ -9,3 +9,7 @@ func ListConcat[T any](a, b []T) []T {
 
 	return res
 }
+
+func ListLength[T any](a []T) int {
+	return len(a)
+}

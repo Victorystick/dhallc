@@ -86,6 +86,13 @@ func (b *builder) Dedent() {
 	b.WriteString("}")
 }
 
+// Imports the helper library and uses name.
+func (b *builder) Lib(name string) {
+	b.imports["github.com/Victorystick/dhallc/lib"] = ""
+	b.WriteString("lib.")
+	b.WriteString(name)
+}
+
 func GeneratePackage(filename string, t term.Term) (string, error) {
 	p := MakeBuilder()
 	p.WriteString("package ")
@@ -193,12 +200,25 @@ func generate(b *builder, val term.Term) error {
 	case term.False:
 		_, err := b.WriteString("false")
 		return err
+	case term.ListLength:
+		b.Lib("ListLength")
+		return nil
+	case term.Natural:
+		b.WriteString("uint")
+		return nil
+	case term.Integer:
+		b.WriteString("int")
+		return nil
 	}
 
 	// Types
 	switch val := val.(type) {
 	case term.NaturalLit:
 		b.WriteString(strconv.FormatUint(uint64(val), 10))
+		return nil
+
+	case term.IntegerLit:
+		b.WriteString(strconv.FormatInt(int64(val), 10))
 		return nil
 
 	case term.Op:
@@ -242,6 +262,16 @@ func generate(b *builder, val term.Term) error {
 		err := generate(b, val.Fn)
 		if err != nil {
 			return err
+		}
+		if isType(val.Arg) {
+			// TODO: Do we need this or can Go infer types?
+			// b.WriteByte('[')
+			// err = generate(b, val.Arg)
+			// if err != nil {
+			// 	return err
+			// }
+			// b.WriteByte(']')
+			return nil
 		}
 		b.WriteByte('(')
 		err = generate(b, val.Arg)
@@ -432,14 +462,13 @@ func writeOp(b *builder, op term.Op) error {
 	case term.TimesOp:
 		return writeInfixOp(b, " * ", op)
 	case term.ListAppendOp:
-		b.imports["github.com/Victorystick/dhallc/lib"] = ""
-		b.WriteString("lib.ListConcat(")
+		b.Lib("ListConcat(")
 		err := generate(b, op.L)
 		if err != nil {
 			return err
 		}
 		b.WriteString(", ")
-		err = generate(b, op.L)
+		err = generate(b, op.R)
 		if err != nil {
 			return err
 		}
@@ -547,6 +576,13 @@ func isType(t term.Term) bool {
 		return false
 	}
 
+	switch t {
+	case term.Natural:
+		return true
+	case term.Integer:
+		return true
+	}
+
 	switch t.(type) {
 	case term.RecordType:
 		return true
@@ -593,6 +629,8 @@ func InferType(scope Scope, t term.Term) (term.Term, error) {
 		return term.Bool, nil
 	case term.NaturalLit:
 		return term.Natural, nil
+	case term.IntegerLit:
+		return term.Integer, nil
 
 	case term.Op:
 		switch t.OpCode {
@@ -600,6 +638,8 @@ func InferType(scope Scope, t term.Term) (term.Term, error) {
 			return term.Natural, nil
 		case term.TimesOp:
 			return term.Natural, nil
+		case term.ListAppendOp:
+			return InferType(scope, t.L)
 		}
 
 	case term.Lambda:
