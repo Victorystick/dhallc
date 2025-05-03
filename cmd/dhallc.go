@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	dhallc "github.com/Victorystick/go-exp" // TODO - rename
+	"github.com/Victorystick/dhallc"
 	"github.com/philandstuff/dhall-golang/v6/parser"
 )
 

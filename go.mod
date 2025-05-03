@@ -1,4 +1,4 @@
-module github.com/Victorystick/go-exp
+module github.com/Victorystick/dhallc
 
 go 1.24.2
 
