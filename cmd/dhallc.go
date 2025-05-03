@@ -11,6 +11,8 @@ import (
 	"github.com/philandstuff/dhall-golang/v6/parser"
 )
 
+var outfile = flag.String("out", "-", "The output file")
+
 func main() {
 	flag.Parse()
 
@@ -27,7 +29,11 @@ func main() {
 	str, err := dhallc.GeneratePackage(filepath.Base(extensionless), term)
 	check(err)
 
-	os.Stdout.WriteString(str)
+	if *outfile == "-" {
+		os.Stdout.WriteString(str)
+	} else {
+		os.WriteFile(*outfile, []byte(str), 0666)
+	}
 }
 
 // Check prints the error and terminates.
